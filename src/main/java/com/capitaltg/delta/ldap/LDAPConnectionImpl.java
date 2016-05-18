@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
 import javax.naming.Context;
+import javax.naming.NameNotFoundException;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
@@ -108,7 +109,7 @@ public class LDAPConnectionImpl implements LDAPConnection {
 			filters.add(extrafilter);
 		}
 		String filter = "(&"+filters.stream().collect(Collectors.joining())+")";
-		logger.debug("Filtering on {}",filter);
+		logger.trace("Searching for objects matching: {}",filter);
 		
 		int counter = 0;
         LdapContext ldapcontext = null;
@@ -227,8 +228,9 @@ public class LDAPConnectionImpl implements LDAPConnection {
 		return list;
 	}
 	
-	private void updateEntry(String id, final SearchResult sourceEntry, final SearchResult existingDestinationEntry, Map<String, String> conversionMap) throws NamingException {
+	private void updateEntry(String id, final SearchResult sourceEntry, final SearchResult existingDestinationEntry, Map<String, String> conversionMap) {
 
+		try {
 		logger.trace("Will try to update existing entry for {}",id);
 		List<ModificationItem> modificationItems = new ArrayList<>();
 		ModificationItem mi = getObjectClassUpdates(existingDestinationEntry);
@@ -240,6 +242,8 @@ public class LDAPConnectionImpl implements LDAPConnection {
 			String sourceValue = runGroovy(
 					ImmutableMap.of(
 							"source",sourceEntry,
+							"sourceConnection",sourceConnection,
+							"destinationConnection",this,
 							"attributes",extractAttributes(sourceEntry),
 							"target",extractAttributes(existingDestinationEntry)), 
 					e.getValue());
@@ -253,8 +257,9 @@ public class LDAPConnectionImpl implements LDAPConnection {
 					logger.trace("Need to update {} to {}",destinationValue, sourceValue);
 					modificationItems.add(new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute(e.getKey(), sourceValue)));
 				}
-			} else {
-				// possible delete
+			} else if(sourceValue==null && !Strings.isNullOrEmpty(destinationValue)){
+				logger.trace("Need to delete {} since source is empty",destinationValue);
+				modificationItems.add(new ModificationItem(DirContext.REMOVE_ATTRIBUTE, new BasicAttribute(e.getKey(), sourceValue)));
 			}
 			
 		});
@@ -265,6 +270,13 @@ public class LDAPConnectionImpl implements LDAPConnection {
 			logger.debug("Updated {} with these updates: {}",id,items);
 		}
 		logger.trace("Finished updating entry for {}",id);
+		} catch(Exception e) {
+			logger.error("Failed to update "+id,e);
+			if(doNotRepeatFailures) {
+				failedCreations.add(id);
+				logger.warn("Will not try again to update user id: {}", id);
+			}
+		}
 	}
 
 	private ModificationItem getObjectClassUpdates(final SearchResult existingDestinationEntry) throws NamingException{
@@ -350,6 +362,10 @@ public class LDAPConnectionImpl implements LDAPConnection {
 		}
 	}
 
+	public String createDNFromUniqueID(String uid) {
+		return uniqueid+"="+uid + "," + ldapbasedn;
+	}
+	
 	private void createEntry(String id, SearchResult result, Map<String, String> conversionMap) throws NamingException {
 
 		logger.debug("Creating new entry for {}",id);
@@ -364,7 +380,7 @@ public class LDAPConnectionImpl implements LDAPConnection {
 		DirContext ctx = null;
 		Context newEntry = null;
 		try {
-			String dn = uniqueid+"="+id + "," + ldapbasedn;
+			String dn = createDNFromUniqueID(id);
 			logger.info("Will create user {} with attributes {}", dn, attributes);
 			ctx = new InitialDirContext(context);
 			newEntry = ctx.createSubcontext(dn, attributes);
@@ -399,7 +415,9 @@ public class LDAPConnectionImpl implements LDAPConnection {
 			String string = runGroovy(
 					ImmutableMap.of(
 							"source",searchResult,
-							"attributes",searchResult.getAttributes(),
+							"sourceConnection",sourceConnection,
+							"destinationConnection",this,
+							"attributes",extractAttributes(searchResult),
 							"target",ImmutableMap.of()), 
 					e.getValue());
 			if(string!=null) {
@@ -456,5 +474,33 @@ public class LDAPConnectionImpl implements LDAPConnection {
 	public void setSourceConnection(LDAPConnection sourceConnection) {
 		this.sourceConnection = sourceConnection;
 	}
+
+    private String getUniqueIDByDN(String dn) {
+    	try {
+	    	Attributes attributes = getDNAttributes(dn);
+	    	return attributes.get(uniqueid).get().toString();
+    	}catch(NamingException e) {
+    		logger.error("Exception thrown while getting unique id by dn",e);
+    		return null;
+    	}
+    }
 	
+    private Attributes getDNAttributes(String dn) {
+    	logger.debug("Getting attributes for DN: {}",dn);
+    	Attributes attributes = null;
+    	LdapContext ldapContext = null;
+		try {
+			ldapContext = new InitialLdapContext(context, null);
+	        SearchControls searchControls = new SearchControls();
+	        searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+	        attributes = ldapContext.getAttributes(dn);
+			ldapContext.close();
+		} catch(NameNotFoundException e) {
+			logger.warn("Could not find attributes for entry with dn {}",dn);
+		} catch(NamingException e){
+			e.printStackTrace();
+		}
+		return attributes;
+    }
+
 }

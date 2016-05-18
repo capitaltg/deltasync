@@ -1,8 +1,8 @@
 # Project Delta
-Project Delta helps keep multiple LDAP servers synchronized
+Project DeltaSync helps keep multiple LDAP servers synchronized
 
 ## Requirements
-- To get setup, you need to have JDK8 (or later) installed on your machine.
+- To get setup, make sure you have JDK8 (or later) installed on your machine
 - For development on Windows, the instructions below were written for a bash
   environment.  If you aren't familiar with it yet,  
   [gitbash](https://git-scm.com/downloads) is an excellent development tool
@@ -20,7 +20,7 @@ development with these steps:
 ### Modes
 * Full sync
 ```
-	For each search result in source data system
+For each search result in source data system
    		where objectClass=XYZ
     	where DN within search base
     Find match in target
@@ -29,8 +29,9 @@ development with these steps:
     	if identical
     		ignore
     	if not identical
-    		update	
+    		update
 	Sync group membership
+```
 
 * Partial sync
 	Same as above.  Add filter based on time

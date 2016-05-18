@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:mvc="http://www.springframework.org/schema/mvc" xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+						http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+	<context:property-placeholder location="file:config/delta.properties" />
+
+	<bean id="sourceConnection" class="com.capitaltg.delta.ldap.LDAPConnectionImpl" init-method="init" >
+	    <property name="ldapusername" value="${ldap.source.username}"/>
+	    <property name="ldappassword" value="${ldap.source.password}"/>
+	    <property name="ldapurl" value="${ldap.source.url}"/>
+	    <property name="ldapbasedn" value="${ldap.source.searchbase}"/>
+	    <property name="uniqueid" value="${ldap.source.uniqueid}"/>
+	    <property name="objectclass" value="${ldap.source.objectclass}"/>
+	    <property name="extrafilter" value="${ldap.source.extrafilter:}"/>
+	</bean>
+
+	<bean id="destinationConnection" class="com.capitaltg.delta.ldap.LDAPConnectionImpl" init-method="init" >
+	    <property name="ldapusername" value="${ldap.destination.username}"/>
+	    <property name="ldappassword" value="${ldap.destination.password}"/>
+	    <property name="ldapurl" value="${ldap.destination.url}"/>
+	    <property name="ldapbasedn" value="${ldap.destination.searchbase}"/>
+	    <property name="uniqueid" value="${ldap.destination.uniqueid}"/>
+	    <property name="objectclass" value="${ldap.destination.objectclass}"/>
+	    <property name="sourceConnection" ref="sourceConnection" />
+	</bean>
+
+	<bean id="poller" class="com.capitaltg.delta.DeltaPoller" init-method="init" >
+	    <constructor-arg ref="sourceConnection" />
+	    <constructor-arg ref="destinationConnection" />
+	    <property name="secondsBetweenSyncs" value="${secondsBetweenSyncs}"></property>
+	    <property name="secondsSinceChanged" value="${secondsSinceChanged}"></property>
+	    <property name="doFullSyncFirst" value="${doFullSyncFirst:false}"></property>
+	</bean>
+
+</beans>

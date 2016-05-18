@@ -1,0 +1,27 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'application'
+
+repositories {
+	jcenter()
+}
+
+dependencies {
+	compile "org.slf4j:slf4j-api:$versionslf4j"
+	compile "org.slf4j:slf4j-log4j12:$versionslf4j"
+	compile "log4j:log4j:$versionlog4j"
+	
+	compile "com.google.guava:guava:$versionguava"
+	compile "org.apache.commons:commons-lang3:$versioncommonslang"
+	
+	compile "org.springframework:spring-context:$versionspring"
+	compile "org.springframework:spring-context-support:$versionspring"
+	
+	compile "org.codehaus.groovy:groovy:2.4.6"
+	
+	testCompile "junit:junit:4.12"
+}
+
+configurations { provided }
+
+mainClassName = "com.capitaltg.delta.DeltaSync"

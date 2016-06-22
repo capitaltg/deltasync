@@ -15,6 +15,7 @@
 	    <property name="uniqueid" value="${ldap.source.uniqueid}"/>
 	    <property name="objectclass" value="${ldap.source.objectclass}"/>
 	    <property name="extrafilter" value="${ldap.source.extrafilter:}"/>
+	    <property name="readonly" value="true" />
 	</bean>
 
 	<bean id="destinationConnection" class="com.capitaltg.delta.ldap.LDAPConnectionImpl" init-method="init" >
@@ -25,6 +26,7 @@
 	    <property name="uniqueid" value="${ldap.destination.uniqueid}"/>
 	    <property name="objectclass" value="${ldap.destination.objectclass}"/>
 	    <property name="sourceConnection" ref="sourceConnection" />
+	    <property name="readonly" value="${readonly}" />
 	</bean>
 
 	<bean id="poller" class="com.capitaltg.delta.DeltaPoller" init-method="init" >

@@ -68,10 +68,13 @@ public class LDAPConnectionImpl implements LDAPConnection {
 	private int pageSize = 10;
 
 	private LDAPConnection sourceConnection;
+	private boolean readonly = true;
 	
 	@PostConstruct
 	public void init() {
 
+		logger.info("Read only is: {}",Boolean.valueOf(readonly));
+		
 		context=new Hashtable<>();
 		context.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
 		context.put(Context.SECURITY_PRINCIPAL, ldapusername);
@@ -257,7 +260,7 @@ public class LDAPConnectionImpl implements LDAPConnection {
 					logger.trace("Need to update {} to {}",destinationValue, sourceValue);
 					modificationItems.add(new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute(e.getKey(), sourceValue)));
 				}
-			} else if(sourceValue==null && !Strings.isNullOrEmpty(destinationValue)){
+			} else if(!Strings.isNullOrEmpty(destinationValue)){
 				logger.trace("Need to delete {} since source is empty",destinationValue);
 				modificationItems.add(new ModificationItem(DirContext.REMOVE_ATTRIBUTE, new BasicAttribute(e.getKey(), sourceValue)));
 			}
@@ -294,6 +297,12 @@ public class LDAPConnectionImpl implements LDAPConnection {
 	}
 	
 	private void updateObject(String objectDn, ModificationItem[] mods) throws NamingException {
+
+		if(readonly) {
+			logger.info("Read only mode: Will not update {} with {}", objectDn, mods);
+			return;
+		}
+		
 		DirContext ctx=new InitialDirContext(context);
 		try {
 			ctx.modifyAttributes(objectDn, mods);
@@ -377,15 +386,21 @@ public class LDAPConnectionImpl implements LDAPConnection {
 		Attributes attributes = createAttributes(result, conversionMap);
 		attributes.put(uniqueid, id);
 
+		String dn = createDNFromUniqueID(id);
+		
+		if(readonly) {
+			logger.info("Read only mode: Will not create user {}", dn);
+			return;
+		}
+		
 		DirContext ctx = null;
 		Context newEntry = null;
 		try {
-			String dn = createDNFromUniqueID(id);
 			logger.info("Will create user {} with attributes {}", dn, attributes);
 			ctx = new InitialDirContext(context);
 			newEntry = ctx.createSubcontext(dn, attributes);
 			newEntry.close();
-			logger.info("Created user {}", dn, attributes);
+			logger.info("Created user {}", dn);
 		} catch (AttributeInUseException e) {
 			logger.error("Failed to create user "+id, e);
 		} catch(SchemaViolationException e) {
@@ -502,5 +517,9 @@ public class LDAPConnectionImpl implements LDAPConnection {
 		}
 		return attributes;
     }
+
+	public void setReadonly(boolean readonly) {
+		this.readonly = readonly;
+	}
 
 }

@@ -65,7 +65,7 @@ public class LDAPConnectionImpl implements LDAPConnection {
 	private String extrafilter;
 	private boolean doNotRepeatFailures = true;
 	private Set<String> failedCreations = new HashSet<>();
-	private int pageSize = 10;
+	private int pageSize = 100;
 
 	private LDAPConnection sourceConnection;
 	private boolean readonly = true;
@@ -112,7 +112,7 @@ public class LDAPConnectionImpl implements LDAPConnection {
 			filters.add(extrafilter);
 		}
 		String filter = "(&"+filters.stream().collect(Collectors.joining())+")";
-		logger.trace("Searching for objects matching: {}",filter);
+		logger.debug("Searching for objects matching: {}",filter);
 		
 		int counter = 0;
         LdapContext ldapcontext = null;
@@ -139,7 +139,7 @@ public class LDAPConnectionImpl implements LDAPConnection {
 		        ldapcontext.setRequestControls(new Control[]{
                         new PagedResultsControl(pageSize, cookie, Control.CRITICAL) });
 		        if(cookie!=null) {
-		        	logger.debug("Read {} results.  Getting another page of results.",counter);
+//		        	logger.debug("Read {} results.  Getting another page of results.",counter);
 		        }
         	} while(cookie!=null);
         	
@@ -234,14 +234,13 @@ public class LDAPConnectionImpl implements LDAPConnection {
 	private void updateEntry(String id, final SearchResult sourceEntry, final SearchResult existingDestinationEntry, Map<String, String> conversionMap) {
 
 		try {
-		logger.trace("Will try to update existing entry for {}",id);
+//		logger.debug("Will try to update existing entry for {}",id);
 		List<ModificationItem> modificationItems = new ArrayList<>();
 		ModificationItem mi = getObjectClassUpdates(existingDestinationEntry);
 		if(mi!=null){
-			modificationItems.add(mi);
+//			modificationItems.add(mi);
 		}
 		conversionMap.entrySet().stream().forEach( e -> {
-				
 			String sourceValue = runGroovy(
 					ImmutableMap.of(
 							"source",sourceEntry,
@@ -252,12 +251,14 @@ public class LDAPConnectionImpl implements LDAPConnection {
 					e.getValue());
 			
 			String destinationValue = getAttribute(existingDestinationEntry.getAttributes(), e.getKey());
+//			logger.debug("{} : {} : {} : {}",id, e, sourceValue, destinationValue);	
+			
 			if(sourceValue !=null) {
 				if(Strings.isNullOrEmpty(destinationValue) && !Strings.isNullOrEmpty(sourceValue)) {
-					logger.trace("Adding attribute {} to {}",sourceValue,e.getKey());
+//					logger.debug("Adding attribute {} to {}",sourceValue,e.getKey());
 					modificationItems.add(new ModificationItem(DirContext.ADD_ATTRIBUTE, new BasicAttribute(e.getKey(), sourceValue)));
-				} else if(!sourceValue.equals(destinationValue)) {
-					logger.trace("Need to update {} to {}",destinationValue, sourceValue);
+				} else if(!sourceValue.equalsIgnoreCase(destinationValue)) {
+//					logger.debug("Need to update {} to {}",destinationValue, sourceValue);
 					modificationItems.add(new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute(e.getKey(), sourceValue)));
 				}
 			} else if(!Strings.isNullOrEmpty(destinationValue)){
@@ -270,6 +271,9 @@ public class LDAPConnectionImpl implements LDAPConnection {
 			ModificationItem[] items = new ModificationItem[modificationItems.size()];
 			modificationItems.toArray(items);
 			updateObject(existingDestinationEntry.getNameInNamespace(), items);
+			if(readonly) {
+				return;
+			}
 			logger.debug("Updated {} with these updates: {}",id,items);
 		}
 		logger.trace("Finished updating entry for {}",id);
@@ -339,13 +343,14 @@ public class LDAPConnectionImpl implements LDAPConnection {
 
 	        if(results.hasMoreElements()) {
 	        	searchResult = results.nextElement();
-	            logger.debug("Found existing matching user for {}: {}",uid, searchResult.getNameInNamespace());
-	        } 
+//	            logger.debug("Found existing matching user for {}: {}",uid, searchResult.getNameInNamespace());
+	        }
 	        ldapContext.close();
 	        if(results.hasMoreElements()) {
 	        	// TODO improve diagnosis
 	        	logger.warn("User {} has more than one matching profile.  Updated first matching result {}", uid,searchResult.getNameInNamespace());
 	        }
+	        results.close();
 	        close(ldapContext);
 	        return searchResult;
 
@@ -490,7 +495,7 @@ public class LDAPConnectionImpl implements LDAPConnection {
 		this.sourceConnection = sourceConnection;
 	}
 
-    private String getUniqueIDByDN(String dn) {
+    public String getUniqueIDByDN(String dn) {
     	try {
 	    	Attributes attributes = getDNAttributes(dn);
 	    	return attributes.get(uniqueid).get().toString();
@@ -501,7 +506,7 @@ public class LDAPConnectionImpl implements LDAPConnection {
     }
 	
     private Attributes getDNAttributes(String dn) {
-    	logger.debug("Getting attributes for DN: {}",dn);
+//    	logger.debug("Getting attributes for DN: {}",dn);
     	Attributes attributes = null;
     	LdapContext ldapContext = null;
 		try {
@@ -515,6 +520,7 @@ public class LDAPConnectionImpl implements LDAPConnection {
 		} catch(NamingException e){
 			e.printStackTrace();
 		}
+//		logger.debug("  Found attributes: {}",attributes);
 		return attributes;
     }
 
